@@ -19,6 +19,7 @@ package org.apache.spark.sql.catalyst.expressions.variant
 
 import scala.util.control.NonFatal
 
+import org.apache.spark.SparkRuntimeException
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.util.{ArrayData, MapData}
 import org.apache.spark.sql.errors.QueryExecutionErrors
@@ -49,6 +50,8 @@ object VariantExpressionEvalUtils {
       case _: VariantSizeLimitException =>
         parseJsonFailure(QueryExecutionErrors
           .variantSizeLimitError(VariantUtil.SIZE_LIMIT, "parse_json"))
+      case e: SparkRuntimeException if e.getErrorClass == "VARIANT_DUPLICATE_KEY" =>
+        parseJsonFailure(e)
       case NonFatal(e) =>
         parseJsonFailure(QueryExecutionErrors.malformedRecordsDetectedInRecordParsingError(
           input.toString, e))

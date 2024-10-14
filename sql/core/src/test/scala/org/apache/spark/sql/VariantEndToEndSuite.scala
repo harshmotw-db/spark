@@ -359,16 +359,19 @@ class VariantEndToEndSuite extends QueryTest with SharedSparkSession {
       val expectedMetadata: Array[Byte] = Array(VERSION, 3, 0, 1, 2, 3, 'a', 'b', 'c')
       assert(actual === new VariantVal(expectedValue, expectedMetadata))
     }
-    withSQLConf(SQLConf.VARIANT_ALLOW_DUPLICATE_KEYS.key -> "false") {
-      val df = Seq(json).toDF("j")
-        .selectExpr("from_json(j,'variant')")
-      checkError(
-        exception = intercept[SparkThrowable] {
-          df.collect()
-        },
-        condition = "MALFORMED_RECORD_IN_PARSING.WITHOUT_SUGGESTION",
-        parameters = Map("badRecord" -> json, "failFastMode" -> "FAILFAST")
-      )
+    // Test whether `parse_json` and `from_json` throw the same duplicate key exception.
+    Seq("parse_json(j)", "from_json(j, 'variant')").foreach { expr =>
+      withSQLConf(SQLConf.VARIANT_ALLOW_DUPLICATE_KEYS.key -> "false") {
+        val df = Seq(json).toDF("j")
+          .selectExpr(expr)
+        checkError(
+          exception = intercept[SparkThrowable] {
+            df.collect()
+          },
+          condition = "VARIANT_DUPLICATE_KEY",
+          parameters = Map("key" -> "a")
+        )
+      }
     }
   }
 }
